@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client.js'
 import EvidenceImage from '../components/EvidenceImage.jsx'
-import IncidentForm from '../components/IncidentForm.jsx'
+import EventForm from '../components/EventForm.jsx'
 import MugshotCropper from '../components/MugshotCropper.jsx'
 import PetImage from '../components/PetImage.jsx'
+import { eventTypeByValue } from '../eventTypes.js'
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
 const dateTimeFormat = new Intl.DateTimeFormat(undefined, {
@@ -16,14 +17,14 @@ export default function PetProfile() {
   const navigate = useNavigate()
   const location = useLocation()
   const [pet, setPet] = useState(null)
-  const [incidents, setIncidents] = useState([])
+  const [events, setEvents] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState(location.state?.uploadError || '')
   const [uploadingPet, setUploadingPet] = useState(false)
   const [pendingMugshot, setPendingMugshot] = useState(null)
-  const [uploadingIncidentId, setUploadingIncidentId] = useState(null)
+  const [uploadingEventId, setUploadingEventId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [deletingPet, setDeletingPet] = useState(false)
   const [retry, setRetry] = useState(0)
@@ -32,11 +33,11 @@ export default function PetProfile() {
     let active = true
     setLoading(true)
     setError('')
-    Promise.all([api.getPet(id), api.listIncidents(id), api.getStats(id)])
-      .then(([petData, incidentData, statData]) => {
+    Promise.all([api.getPet(id), api.listEvents(id), api.getStats(id)])
+      .then(([petData, eventData, statData]) => {
         if (active) {
           setPet(petData)
-          setIncidents(incidentData)
+          setEvents(eventData)
           setStats(statData)
         }
       })
@@ -46,26 +47,26 @@ export default function PetProfile() {
   }, [id, retry])
 
   async function refreshActivity() {
-    const [incidentData, statData] = await Promise.all([api.listIncidents(id), api.getStats(id)])
-    setIncidents(incidentData)
+    const [eventData, statData] = await Promise.all([api.listEvents(id), api.getStats(id)])
+    setEvents(eventData)
     setStats(statData)
   }
 
-  async function handleReport(payload, imageFile) {
+  async function handleAddEvent(payload, imageFile) {
     setActionError('')
-    const incident = await api.createIncident(id, payload)
+    const entry = await api.createEvent(id, payload)
     let uploadError = ''
     if (imageFile) {
       try {
-        await api.uploadIncidentImage(incident.id, imageFile)
+        await api.uploadEventImage(entry.id, imageFile)
       } catch (err) {
-        uploadError = `Incident saved, but the evidence upload failed: ${err.message} You can retry from the incident card.`
+        uploadError = `Entry saved, but the photo upload failed: ${err.message} You can retry from the journal entry.`
       }
     }
     try {
       await refreshActivity()
     } catch {
-      setActionError('Incident saved, but the case file could not refresh. Reload the page to see it.' + (uploadError ? ` ${uploadError}` : ''))
+      setActionError('Entry saved, but the case file could not refresh. Reload the page to see it.' + (uploadError ? ` ${uploadError}` : ''))
       return
     }
     if (uploadError) setActionError(uploadError)
@@ -91,32 +92,32 @@ export default function PetProfile() {
     }
   }
 
-  async function handleIncidentImage(incidentId, event) {
+  async function handleEventImage(eventId, event) {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     setActionError('')
-    setUploadingIncidentId(incidentId)
+    setUploadingEventId(eventId)
     try {
-      const updated = await api.uploadIncidentImage(incidentId, file)
-      setIncidents((current) => current.map((incident) => incident.id === incidentId ? updated : incident))
+      const updated = await api.uploadEventImage(eventId, file)
+      setEvents((current) => current.map((entry) => entry.id === eventId ? updated : entry))
     } catch (err) {
-      setActionError(`Evidence upload failed: ${err.message}`)
+      setActionError(`Photo upload failed: ${err.message}`)
     } finally {
-      setUploadingIncidentId(null)
+      setUploadingEventId(null)
     }
   }
 
-  async function handleDelete(incidentId) {
-    if (!window.confirm('Remove this incident from the case file?')) return
+  async function handleDelete(eventId) {
+    if (!window.confirm('Remove this entry from the case file?')) return
     setActionError('')
-    setDeletingId(incidentId)
+    setDeletingId(eventId)
     try {
-      await api.deleteIncident(incidentId)
+      await api.deleteEvent(eventId)
       try {
         await refreshActivity()
       } catch {
-        setActionError('Incident deleted, but the case file could not refresh. Reload the page to update it.')
+        setActionError('Entry deleted, but the case file could not refresh. Reload the page to update it.')
       }
     } catch (err) {
       setActionError(err.message)
@@ -126,7 +127,7 @@ export default function PetProfile() {
   }
 
   async function handleDeletePet() {
-    if (!window.confirm(`Delete ${pet.name}'s profile and all ${incidents.length} incident reports? This cannot be undone.`)) return
+    if (!window.confirm(`Delete ${pet.name}'s profile and all ${events.length} journal entries? This cannot be undone.`)) return
     setActionError('')
     setDeletingPet(true)
     try {
@@ -170,7 +171,7 @@ export default function PetProfile() {
           <div className="profile-info">
             <p className="eyebrow">CRIMINAL PROFILE · PERSON OF INTEREST</p>
             <h1>{pet.name}</h1>
-            <p className="profile-subtitle">Known for looking innocent. Investigation ongoing.</p>
+            <p className="profile-subtitle">Part criminal record, part life journal. Investigation ongoing.</p>
             <div className="profile-facts">
               <div><small>SPECIES</small><strong>{pet.species}</strong></div>
               <div><small>BREED</small><strong>{pet.breed || 'Unknown'}</strong></div>
@@ -197,57 +198,64 @@ export default function PetProfile() {
       {actionError && <p className="form-error" role="alert">{actionError}</p>}
 
       <section className="stats-section" aria-labelledby="stats-title">
-        <div className="section-heading"><span id="stats-title">CASE STATISTICS</span><span>AT A GLANCE</span></div>
+        <div className="section-heading"><span id="stats-title">CASE STATISTICS</span><span>{stats.total_events} JOURNAL ENTRIES</span></div>
         <div className="stats-grid">
-          <div className="stat-card"><span>TOTAL INCIDENTS</span><strong>{stats.total_incidents}</strong><small>ON RECORD</small></div>
-          <div className="stat-card"><span>THIS WEEK</span><strong>{stats.incidents_this_week}</strong><small>MON–SUN · UTC</small></div>
-          <div className="stat-card"><span>TOP OFFENSE</span><strong className="stat-category">{stats.most_common_category || '—'}</strong><small>MOST COMMON CATEGORY</small></div>
-          <div className="stat-card"><span>AVG. SEVERITY</span><strong>{stats.average_severity == null ? '—' : stats.average_severity}</strong><small>{stats.average_severity == null ? 'NO DATA' : 'OUT OF 5'}</small></div>
+          <div className="stat-card stat-card--incident"><span>INCIDENTS</span><strong>{stats.incident_count}</strong><small>ON RECORD</small></div>
+          <div className="stat-card stat-card--good-conduct"><span>GOOD CONDUCT</span><strong>{stats.good_conduct_count}</strong><small>COMMENDATIONS</small></div>
+          <div className="stat-card stat-card--funny-moment"><span>FUNNY MOMENTS</span><strong>{stats.funny_moment_count}</strong><small>UNUSUAL ACTIVITY</small></div>
+          <div className="stat-card stat-card--wellness"><span>WELLNESS</span><strong>{stats.wellness_count}</strong><small>CHECKS ON FILE</small></div>
+        </div>
+        <div className="offense-heading">OFFENSE DETAILS / INCIDENTS ONLY</div>
+        <div className="crime-stats-grid">
+          <div className="stat-card stat-card-detail"><span>CRIMES THIS WEEK</span><strong>{stats.incidents_this_week}</strong><small>MON–SUN · UTC</small></div>
+          <div className="stat-card stat-card-detail"><span>TOP OFFENSE</span><strong className="stat-category">{stats.most_common_category || '—'}</strong><small>MOST COMMON CRIME</small></div>
+          <div className="stat-card stat-card-detail"><span>AVG. MENACE LEVEL</span><strong>{stats.average_severity == null ? '—' : stats.average_severity}</strong><small>{stats.average_severity == null ? 'NO DATA' : 'OUT OF 5'}</small></div>
         </div>
       </section>
 
       <div className="case-work-grid">
-        <section className="incident-section" aria-labelledby="incidents-title">
-          <div className="section-heading"><span id="incidents-title">INCIDENT LOG</span><span>{incidents.length} ENTRIES</span></div>
-          {incidents.length === 0 ? (
-            <div className="incident-empty">
+        <section className="event-section" aria-labelledby="events-title">
+          <div className="section-heading"><span id="events-title">CASE FILE / PET JOURNAL</span><span>{events.length} ENTRIES</span></div>
+          {events.length === 0 ? (
+            <div className="event-empty">
               <span aria-hidden="true">✓</span>
-              <h2>No crimes on record. Yet.</h2>
-              <p>Either a model citizen or an exceptionally sneaky suspect. File the first report when evidence appears.</p>
+              <h2>No suspicious activity on record... yet.</h2>
+              <p>Crimes, good deeds, odd moments, and wellness checks all belong in this case file. Add the first entry when something happens.</p>
             </div>
           ) : (
-            <div className="incident-list">
-              {incidents.map((incident) => (
-                <article className="incident-card" key={incident.id}>
-                  <div className="incident-card-top">
-                    <span>INCIDENT #{String(incident.id).padStart(4, '0')}</span>
-                    <span>{dateTimeFormat.format(new Date(incident.incident_time))}</span>
+            <div className="event-list">
+              {events.map((entry) => {
+                const type = eventTypeByValue[entry.event_type]
+                return <article className={`event-card event-card--${entry.event_type.toLowerCase().replace('_', '-')}`} key={entry.id}>
+                  <div className="event-card-top">
+                    <span>{type.tag} / #{String(entry.id).padStart(4, '0')}</span>
+                    <span>{dateTimeFormat.format(new Date(entry.event_time))}</span>
                   </div>
-                  <div className="incident-card-body">
-                    <div className="incident-title-row">
-                      <h3>{incident.category}</h3>
-                      <span className="severity-badge">SEVERITY {incident.severity}/5</span>
+                  <div className="event-card-body">
+                    <div className="event-title-row">
+                      <h3>{entry.category}</h3>
+                      {entry.event_type === 'INCIDENT' && <span className="severity-badge">SEVERITY {entry.severity}/5</span>}
                     </div>
-                    <p>{incident.description}</p>
-                    <EvidenceImage src={incident.image_url} />
-                    <div className="incident-card-footer">
-                      <span>{incident.image_url ? 'EVIDENCE ATTACHED' : 'NO PHOTO EVIDENCE'}</span>
+                    <p>{entry.description}</p>
+                    <EvidenceImage src={entry.image_url} label={`${entry.category} photo`} />
+                    <div className="event-card-footer">
+                      <span>{entry.image_url ? entry.event_type === 'INCIDENT' ? 'EVIDENCE ATTACHED' : 'PHOTO ON FILE' : 'NO PHOTO ON FILE'}</span>
                       <label className="inline-upload">
-                        <span>{uploadingIncidentId === incident.id ? 'Uploading...' : incident.image_url ? 'Replace evidence' : 'Upload evidence'}</span>
-                        <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => handleIncidentImage(incident.id, event)} disabled={uploadingIncidentId !== null || deletingId !== null || deletingPet} aria-label={`Upload or replace evidence for incident ${incident.id}`} />
+                        <span>{uploadingEventId === entry.id ? 'Uploading...' : entry.image_url ? 'Replace photo' : 'Upload photo'}</span>
+                        <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => handleEventImage(entry.id, event)} disabled={uploadingEventId !== null || deletingId !== null || deletingPet} aria-label={`Upload or replace photo for entry ${entry.id}`} />
                       </label>
-                      <button type="button" onClick={() => handleDelete(incident.id)} disabled={deletingId !== null}>
-                        {deletingId === incident.id ? 'Deleting...' : 'Delete report'}
+                      <button type="button" onClick={() => handleDelete(entry.id)} disabled={deletingId !== null}>
+                        {deletingId === entry.id ? 'Deleting...' : 'Delete entry'}
                       </button>
                     </div>
                   </div>
                 </article>
-              ))}
+              })}
             </div>
           )}
         </section>
 
-        <aside className="report-column"><IncidentForm onReport={handleReport} /></aside>
+        <aside className="report-column"><EventForm onAddEvent={handleAddEvent} /></aside>
       </div>
       {pendingMugshot && <MugshotCropper file={pendingMugshot} onSave={saveMugshot} onCancel={() => setPendingMugshot(null)} />}
     </div>

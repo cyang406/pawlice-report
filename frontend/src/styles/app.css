@@ -70,7 +70,7 @@ body::before {
 
 .eyebrow, .section-heading, .panel-topline, .field > span, .preview-label,
 .file-strip, .card-id, .pet-card-details small, .profile-facts small,
-.incident-card-top, .incident-card-footer, .stat-card > span, .stat-card > small {
+.event-card-top, .event-card-footer, .stat-card > span, .stat-card > small {
   font-family: "Courier New", Courier, monospace;
   font-weight: 700;
   letter-spacing: .08em;
@@ -203,33 +203,51 @@ h1 em { color: var(--red); font-weight: 400; }
 .stats-section { margin-top: 44px; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin-top: 14px; }
 .stat-card { min-height: 149px; padding: 18px 20px; display: flex; flex-direction: column; background: var(--paper); border: 1px solid var(--line); }
+.stat-card--incident { border-top: 3px solid var(--red); }
+.stat-card--good-conduct { border-top: 3px solid #638066; }
+.stat-card--funny-moment { border-top: 3px solid #ac8035; }
+.stat-card--wellness { border-top: 3px solid #668498; }
 .stat-card > span { color: var(--muted); font-size: 10px; }
 .stat-card > strong { margin-top: auto; font: 700 46px/.98 Georgia, serif; letter-spacing: -.05em; overflow-wrap: anywhere; }
 .stat-card > strong.stat-category { font-size: clamp(20px, 2.2vw, 31px); line-height: 1.05; }
 .stat-card > small { margin-top: 10px; color: var(--red); font-size: 9px; }
+.stat-card--good-conduct > small { color: #4e7054; }
+.stat-card--funny-moment > small { color: #8b6425; }
+.stat-card--wellness > small { color: #4c7084; }
+.offense-heading { margin: 24px 0 10px; color: var(--red); font: 700 10px "Courier New", monospace; letter-spacing: .12em; }
+.crime-stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.stat-card-detail { min-height: 127px; background: #f9f4eb; }
+.stat-card-detail > strong { font-size: 34px; }
 .case-work-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(350px, .9fr); align-items: start; gap: 32px; margin-top: 45px; }
-.incident-list { display: flex; flex-direction: column; gap: 17px; margin-top: 14px; }
-.incident-card { background: var(--paper); border: 1px solid var(--line); }
-.incident-card-top { display: flex; justify-content: space-between; gap: 12px; padding: 11px 17px; background: #eee9df; color: #626a6d; font-size: 10px; }
-.incident-card-body { padding: 18px 19px 0; }
-.incident-title-row { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
-.incident-title-row h3 { margin: 0 0 10px; font: 700 23px Georgia, serif; letter-spacing: -.04em; }
+.event-list { display: flex; flex-direction: column; gap: 17px; margin-top: 14px; }
+.event-card { --event-color: var(--red); --event-tint: #f1e5e1; background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--event-color); }
+.event-card--good-conduct { --event-color: #4e7054; --event-tint: #e8eee5; }
+.event-card--funny-moment { --event-color: #8b6425; --event-tint: #f2ead9; }
+.event-card--wellness { --event-color: #4c7084; --event-tint: #e7edf0; }
+.event-card-top { display: flex; justify-content: space-between; gap: 12px; padding: 11px 17px; background: var(--event-tint); color: var(--event-color); font-size: 10px; }
+.event-card-body { padding: 18px 19px 0; }
+.event-title-row { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
+.event-title-row h3 { margin: 0 0 10px; font: 700 23px Georgia, serif; letter-spacing: -.04em; }
 .severity-badge { flex: none; padding: 6px 7px; border: 1px solid #d1a8a4; color: var(--red); font: 700 9px "Courier New", monospace; white-space: nowrap; }
-.incident-card-body > p { margin-bottom: 14px; color: #4f5a62; line-height: 1.58; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.event-card-body > p { margin-bottom: 14px; color: #4f5a62; line-height: 1.58; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .evidence-image { width: 100%; margin-bottom: 17px; background: #ebe5da; border: 1px solid var(--line); }
 .evidence-image img { width: 100%; height: clamp(240px, 28vw, 360px); display: block; object-fit: contain; }
 .evidence-image span { display: block; padding: 22px; color: var(--muted); font-size: 11px; }
-.incident-card-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
-.incident-card-footer button { padding: 0; border: 0; background: none; color: var(--red); font: 700 11px Inter, ui-sans-serif, sans-serif; text-decoration: underline; text-underline-offset: 3px; }
-.incident-card-footer button:disabled { opacity: .55; cursor: wait; }
-.incident-empty { min-height: 277px; margin-top: 14px; padding: 40px 25px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed #bcb4a4; background: rgba(255,253,247,.62); text-align: center; }
-.incident-empty > span { width: 49px; height: 49px; display: grid; place-items: center; margin-bottom: 15px; border: 2px solid #9daa9d; border-radius: 50%; color: #718473; font-size: 25px; }
-.incident-empty h2 { margin: 0 0 8px; font: 700 24px Georgia, serif; }
-.incident-empty p { max-width: 300px; margin: 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+.event-card-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
+.event-card-footer button { padding: 0; border: 0; background: none; color: var(--red); font: 700 11px Inter, ui-sans-serif, sans-serif; text-decoration: underline; text-underline-offset: 3px; }
+.event-card-footer button:disabled { opacity: .55; cursor: wait; }
+.event-empty { min-height: 277px; margin-top: 14px; padding: 40px 25px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed #bcb4a4; background: rgba(255,253,247,.62); text-align: center; }
+.event-empty > span { width: 49px; height: 49px; display: grid; place-items: center; margin-bottom: 15px; border: 2px solid #9daa9d; border-radius: 50%; color: #718473; font-size: 25px; }
+.event-empty h2 { margin: 0 0 8px; font: 700 24px Georgia, serif; }
+.event-empty p { max-width: 300px; margin: 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
 .report-column { padding-top: 0; }
-.report-form { padding: 23px; }
+.report-form { --form-color: var(--red); padding: 23px; }
+.report-form--good-conduct { --form-color: #4e7054; }
+.report-form--funny-moment { --form-color: #8b6425; }
+.report-form--wellness { --form-color: #4c7084; }
+.report-form .eyebrow { color: var(--form-color); }
 .report-form-heading { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
-.report-icon { width: 40px; height: 40px; display: grid; place-items: center; border: 2px solid var(--red); border-radius: 50%; color: var(--red); font: 800 24px Georgia, serif; }
+.report-icon { width: 40px; height: 40px; display: grid; place-items: center; border: 2px solid var(--form-color); border-radius: 50%; color: var(--form-color); font: 800 24px Georgia, serif; }
 .report-form-heading h2 { margin: 3px 0 0; font: 700 27px Georgia, serif; letter-spacing: -.04em; }
 .form-intro { margin: 17px 0 22px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .report-form .field-grid { gap: 18px 14px; }
@@ -292,6 +310,8 @@ h1 em { color: var(--red); font-weight: 400; }
   .profile-info { padding: 2px 0 8px; }
   .profile-info h1 { font-size: 56px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crime-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crime-stats-grid .stat-card:last-child { grid-column: 1 / -1; }
   .stat-card { min-height: 132px; }
   .case-work-grid { gap: 29px; }
   .auth-page { min-height: 0; grid-template-columns: 1fr; gap: 25px; padding-top: 52px; }
@@ -304,11 +324,13 @@ h1 em { color: var(--red); font-weight: 400; }
   .field-full { grid-column: auto; }
   .intake-form, .report-form { padding: 20px; }
   .preview-stamp { width: 86px; height: 86px; font-size: 10px; }
-  .incident-title-row { flex-direction: column; gap: 3px; }
-  .incident-card-top { flex-wrap: wrap; }
+  .event-title-row { flex-direction: column; gap: 3px; }
+  .event-card-top { flex-wrap: wrap; }
   .profile-facts { gap: 17px 12px; }
   .stat-card { padding: 15px; }
   .stat-card > strong { font-size: 39px; }
+  .crime-stats-grid { grid-template-columns: 1fr; }
+  .crime-stats-grid .stat-card:last-child { grid-column: auto; }
   .evidence-image img { height: 260px; }
   .crop-dialog { padding: 18px; }
   .crop-actions .button { flex: 1; padding-inline: 10px; }
