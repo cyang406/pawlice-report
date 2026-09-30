@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 from ..auth import current_user
 from ..database import get_db
 from ..models import User
-from ..schemas import IncidentRead, PetRead
+from ..schemas import EventRead, EventType, IncidentRead, PetRead
 from ..storage import image_path, prepare_image, save_image
+from .events import find_event
 from .incidents import find_incident
 from .pets import find_pet
 
@@ -77,6 +78,34 @@ def upload_incident_image(
 @router.get("/api/incidents/{incident_id}/image", response_class=FileResponse)
 def get_incident_image(incident_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     incident = find_incident(db, incident_id, user.id)
-    if not incident.image_url or not incident.image_url.startswith(f"/api/incidents/{incident_id}/image?"):
+    if not incident.image_url or not incident.image_url.startswith((
+        f"/api/incidents/{incident_id}/image?", f"/api/events/{incident_id}/image?"
+    )):
         raise HTTPException(status_code=404, detail="Image not found")
     return image_response("incidents", incident_id)
+
+
+@router.post("/api/events/{event_id}/image", response_model=EventRead)
+def upload_event_image(
+    event_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    event = find_event(db, event_id, user.id)
+    save_image(file, "incidents", event_id)
+    event.image_url = f"/api/events/{event_id}/image?v={token_hex(8)}"
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@router.get("/api/events/{event_id}/image", response_class=FileResponse)
+def get_event_image(event_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    event = find_event(db, event_id, user.id)
+    valid_prefixes = [f"/api/events/{event_id}/image?"]
+    if event.event_type == EventType.INCIDENT.value:
+        valid_prefixes.append(f"/api/incidents/{event_id}/image?")
+    if not event.image_url or not event.image_url.startswith(tuple(valid_prefixes)):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return image_response("incidents", event_id)

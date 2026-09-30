@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, field_validator, model_validator
 
 from .database import utc_now
 
@@ -20,6 +20,28 @@ class Category(str, Enum):
     FURNITURE_DAMAGE = "Furniture Damage"
     SUSPICIOUS_ACTIVITY = "Suspicious Activity"
     OTHER = "Other"
+
+
+class EventType(str, Enum):
+    INCIDENT = "INCIDENT"
+    GOOD_CONDUCT = "GOOD_CONDUCT"
+    FUNNY_MOMENT = "FUNNY_MOMENT"
+    WELLNESS = "WELLNESS"
+
+
+EVENT_CATEGORIES = {
+    EventType.INCIDENT: {category.value for category in Category},
+    EventType.GOOD_CONDUCT: {"Good Behavior", "Learned Something New", "Calm During Grooming", "Friendly Interaction", "Other"},
+    EventType.FUNNY_MOMENT: {"Weird Sleeping Position", "Funny Reaction", "Got Stuck Somewhere", "Random Chaos", "Other"},
+    EventType.WELLNESS: {"Weight Check", "Teeth Brushing", "Nail Trim", "Bath", "Grooming", "Other"},
+}
+
+
+def normalize_utc_datetime(value: datetime) -> datetime:
+    # Treat datetimes without an offset as UTC; store all values as UTC.
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
 
 
 class PetCreate(BaseModel):
@@ -66,10 +88,7 @@ class IncidentCreate(BaseModel):
     @field_validator("incident_time")
     @classmethod
     def normalize_time(cls, value: datetime) -> datetime:
-        # Treat datetimes without an offset as UTC; store all values as UTC.
-        if value.tzinfo is not None:
-            value = value.astimezone(timezone.utc).replace(tzinfo=None)
-        return value
+        return normalize_utc_datetime(value)
 
 
 class IncidentRead(IncidentCreate):
@@ -85,11 +104,67 @@ class IncidentRead(IncidentCreate):
         return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+class EventCreate(BaseModel):
+    event_type: EventType
+    category: str = Field(min_length=1, max_length=50)
+    description: str = Field(min_length=1)
+    severity: Optional[int] = None
+    event_time: datetime = Field(default_factory=utc_now)
+    image_url: Optional[str] = Field(default=None, max_length=2048)
+
+    @field_validator("description")
+    @classmethod
+    def nonblank_description(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Must not be blank")
+        return value
+
+    @field_validator("event_time")
+    @classmethod
+    def normalize_time(cls, value: datetime) -> datetime:
+        return normalize_utc_datetime(value)
+
+    @model_validator(mode="after")
+    def validate_type_fields(self):
+        if self.category not in EVENT_CATEGORIES[self.event_type]:
+            raise ValueError("Category is not valid for this event type")
+        if self.event_type == EventType.INCIDENT:
+            if self.severity is None or not 1 <= self.severity <= 5:
+                raise ValueError("Incidents require severity from 1 to 5")
+        else:
+            self.severity = None
+        return self
+
+
+class EventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    pet_id: int
+    event_type: EventType
+    category: str
+    description: str
+    severity: Optional[int]
+    event_time: datetime = Field(validation_alias="incident_time")
+    image_url: Optional[str]
+    created_at: datetime
+
+    @field_serializer("event_time", "created_at")
+    def serialize_datetime(self, value: datetime) -> str:
+        return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 class PetStats(BaseModel):
     total_incidents: int
     incidents_this_week: int
     most_common_category: Optional[Category]
     average_severity: Optional[float]
+    total_events: int
+    incident_count: int
+    good_conduct_count: int
+    funny_moment_count: int
+    wellness_count: int
 
 
 class RegisterRequest(BaseModel):

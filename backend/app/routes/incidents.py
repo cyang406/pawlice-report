@@ -1,22 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
 from ..database import get_db
-from ..models import Incident, PetOwner, User
+from ..models import Incident, User
+from ..schemas import EventType
 from ..storage import remove_image
+from .events import find_event
 
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
 
 def find_incident(db: Session, incident_id: int, user_id: int) -> Incident:
-    incident = db.get(Incident, incident_id)
-    owner = db.scalar(
-        select(PetOwner).where(PetOwner.pet_id == incident.pet_id, PetOwner.user_id == user_id)
-    ) if incident is not None else None
-    if owner is None:
+    try:
+        incident = find_event(db, incident_id, user_id)
+    except HTTPException as exc:
+        raise HTTPException(status_code=404, detail="Incident not found") from exc
+    if incident.event_type != EventType.INCIDENT.value:
         raise HTTPException(status_code=404, detail="Incident not found")
     return incident
 

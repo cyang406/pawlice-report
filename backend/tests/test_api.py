@@ -75,6 +75,11 @@ def test_pet_incident_and_stats_flow(client):
         "incidents_this_week": 0,
         "most_common_category": None,
         "average_severity": None,
+        "total_events": 0,
+        "incident_count": 0,
+        "good_conduct_count": 0,
+        "funny_moment_count": 0,
+        "wellness_count": 0,
     }
 
     now = datetime.now(timezone.utc)
@@ -108,6 +113,11 @@ def test_pet_incident_and_stats_flow(client):
         "incidents_this_week": 2,
         "most_common_category": "Food Theft",
         "average_severity": 3.0,
+        "total_events": 3,
+        "incident_count": 3,
+        "good_conduct_count": 0,
+        "funny_moment_count": 0,
+        "wellness_count": 0,
     }
 
     assert client.delete(f"/api/incidents/{ids[0]}").status_code == 204
@@ -127,6 +137,7 @@ def test_validation_and_missing_records(client):
     for category, description, severity in [
         ("Unknown Crime", "Bad behavior", 2),
         ("Food Theft", "   ", 2),
+        ("Food Theft", "Bad behavior", None),
         ("Food Theft", "Bad behavior", 6),
     ]:
         response = client.post(
@@ -138,6 +149,116 @@ def test_validation_and_missing_records(client):
         "/api/pets/999/incidents",
         json={"category": "Food Theft", "description": "Bad behavior", "severity": 2},
     ).status_code == 404
+
+
+def test_events_keep_incident_routes_isolated_and_stats_correct(client):
+    register(client)
+    pet_id = client.post("/api/pets", json={"name": "Mochi", "species": "Cat"}).json()["id"]
+    legacy = client.post(
+        f"/api/pets/{pet_id}/incidents",
+        json={"category": "Food Theft", "description": "Stole lunch", "severity": 2,
+              "incident_time": "2025-01-01T12:00:00Z", "event_type": "GOOD_CONDUCT"},
+    )
+    assert legacy.status_code == 201
+    legacy_id = legacy.json()["id"]
+
+    entries = [
+        ("GOOD_CONDUCT", "Good Behavior", "2025-01-02T12:00:00Z", {}),
+        ("FUNNY_MOMENT", "Weird Sleeping Position", "2025-01-03T12:00:00Z", {"severity": None}),
+        ("WELLNESS", "Grooming", "2025-01-04T12:00:00Z", {"severity": 5}),
+        ("INCIDENT", "Property Damage", "2025-01-05T12:00:00Z", {"severity": 4}),
+    ]
+    created = []
+    for event_type, category, event_time, extra in entries:
+        response = client.post(
+            f"/api/pets/{pet_id}/events",
+            json={"event_type": event_type, "category": category, "description": "Case note",
+                  "event_time": event_time, **extra},
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["event_type"] == event_type
+        assert response.json()["event_time"] == event_time
+        created.append(response.json())
+
+    assert created[0]["severity"] is None
+    assert created[1]["severity"] is None
+    assert created[2]["severity"] is None
+    assert [event["id"] for event in client.get(f"/api/pets/{pet_id}/events").json()] == [
+        created[3]["id"], created[2]["id"], created[1]["id"], created[0]["id"], legacy_id,
+    ]
+    assert [incident["id"] for incident in client.get(f"/api/pets/{pet_id}/incidents").json()] == [
+        created[3]["id"], legacy_id,
+    ]
+    assert client.get(f"/api/pets/{pet_id}/stats").json() == {
+        "total_incidents": 2, "incidents_this_week": 0,
+        "most_common_category": "Food Theft", "average_severity": 3.0,
+        "total_events": 5, "incident_count": 2, "good_conduct_count": 1,
+        "funny_moment_count": 1, "wellness_count": 1,
+    }
+
+    funny_id = created[1]["id"]
+    assert client.delete(f"/api/incidents/{funny_id}").status_code == 404
+    assert client.post(
+        f"/api/incidents/{funny_id}/image",
+        files={"file": ("evidence.png", png_bytes(), "image/png")},
+    ).status_code == 404
+    uploaded = client.post(
+        f"/api/events/{funny_id}/image",
+        files={"file": ("evidence.png", png_bytes(), "image/png")},
+    )
+    assert uploaded.status_code == 200
+    assert uploaded.json()["image_url"].startswith(f"/api/events/{funny_id}/image?")
+    assert client.get(uploaded.json()["image_url"]).status_code == 200
+    assert storage.image_path("incidents", funny_id).is_file()
+    incident_image = client.post(
+        f"/api/events/{created[3]['id']}/image",
+        files={"file": ("evidence.png", png_bytes(), "image/png")},
+    )
+    assert incident_image.status_code == 200
+    assert client.get(f"/api/incidents/{created[3]['id']}/image").status_code == 200
+
+    assert client.post("/api/auth/logout").status_code == 204
+    register(client, "other@example.com")
+    assert client.get(f"/api/pets/{pet_id}/events").status_code == 404
+    assert client.delete(f"/api/events/{funny_id}").status_code == 404
+    assert client.get(uploaded.json()["image_url"]).status_code == 404
+    assert client.post(
+        f"/api/pets/{pet_id}/events",
+        json={"event_type": "WELLNESS", "category": "Bath", "description": "Clean"},
+    ).status_code == 404
+    assert client.post("/api/auth/logout").status_code == 204
+    assert client.post("/api/auth/login", json={"email": "owner@example.com", "password": "safe-password-123"}).status_code == 200
+
+    assert client.delete(f"/api/events/{funny_id}").status_code == 204
+    assert not storage.image_path("incidents", funny_id).exists()
+    assert client.get(f"/api/pets/{pet_id}/stats").json()["total_events"] == 4
+    assert len(client.get(f"/api/pets/{pet_id}/incidents").json()) == 2
+
+
+def test_event_validation(client):
+    register(client)
+    pet_id = client.post("/api/pets", json={"name": "Pip", "species": "Dog"}).json()["id"]
+    incident = {"event_type": "INCIDENT", "category": "Food Theft", "description": "Stole a treat"}
+    for severity in (None, 0, 6):
+        response = client.post(f"/api/pets/{pet_id}/events", json={**incident, "severity": severity})
+        assert response.status_code == 422
+    for event_type, category in [
+        ("INCIDENT", "Good Behavior"),
+        ("GOOD_CONDUCT", "Food Theft"),
+        ("FUNNY_MOMENT", "Bath"),
+        ("WELLNESS", "Random Chaos"),
+        ("UNKNOWN", "Other"),
+    ]:
+        assert client.post(
+            f"/api/pets/{pet_id}/events",
+            json={"event_type": event_type, "category": category, "description": "Case note", "severity": 3},
+        ).status_code == 422
+    assert client.get("/api/pets/999/events").status_code == 404
+    assert client.post(
+        "/api/pets/999/events",
+        json={"event_type": "GOOD_CONDUCT", "category": "Good Behavior", "description": "Sat nicely"},
+    ).status_code == 404
+    assert client.get(f"/api/pets/{pet_id}/events").json() == []
 
 
 def test_accounts_isolate_pets_and_delete_profile_with_incidents(client):

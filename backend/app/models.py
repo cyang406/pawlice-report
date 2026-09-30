@@ -47,9 +47,10 @@ class Incident(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     pet_id: Mapped[int] = mapped_column(ForeignKey("pets.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(20), nullable=False, default="INCIDENT", server_default="INCIDENT")
     category: Mapped[str] = mapped_column(String(50))
     description: Mapped[str] = mapped_column(Text)
-    severity: Mapped[int] = mapped_column(Integer)
+    severity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     incident_time: Mapped[datetime] = mapped_column(DateTime)
     image_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

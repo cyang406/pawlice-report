@@ -1,6 +1,6 @@
 # Pawlice Report API (local MVP)
 
-FastAPI backend for pets, incidents, and per-pet statistics. Dates and times are stored in UTC. A timestamp without a timezone is treated as UTC. A week begins Monday at 00:00 UTC.
+FastAPI backend for pets, incidents, journal events, and per-pet statistics. Dates and times are stored in UTC. A timestamp without a timezone is treated as UTC. A week begins Monday at 00:00 UTC.
 
 ## Run locally with MySQL
 
@@ -32,6 +32,17 @@ uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 
 Paste the output of `openssl rand -hex 32` after `SESSION_SECRET=` in `.env`. The existing local `.env` is already configured. The example sets `DATABASE_URL=mysql+pymysql://pawlice:pawlice@127.0.0.1:3307/pawlice_report`. Port 8001 is used because another local app occupies 8000; change the port if 8000 becomes free. SQLAlchemy creates missing tables on startup. Existing pets are assigned to the first account created after this update through the new `pet_owners` table; the existing `pets` table is not altered. The API is at `http://127.0.0.1:8001/api`, and interactive API docs are at `http://127.0.0.1:8001/docs`.
 
+## One-time migration for an existing MySQL database
+
+If `incidents` was created before events were added, stop the API, back up the database, and run [migrations/001_events.sql](migrations/001_events.sql) once from the repository root:
+
+```bash
+docker exec pawlice-report-mysql mysqldump -upawlice -ppawlice --single-transaction pawlice_report > /private/tmp/pawlice-before-events.sql
+docker exec -i pawlice-report-mysql mysql -upawlice -ppawlice pawlice_report < backend/migrations/001_events.sql
+```
+
+The migration adds `event_type VARCHAR(20) NOT NULL DEFAULT 'INCIDENT'` and makes `severity` nullable. It leaves incident IDs, timestamps, image URLs, and stored files untouched. Existing rows become `INCIDENT`. A fresh database gets this schema from `create_all()` and does not need the migration; `create_all()` does **not** alter an existing table. The SQL file is intentionally one-time and will fail if rerun after the column exists.
+
 ## Routes
 
 - `GET /api/health`
@@ -40,13 +51,23 @@ Paste the output of `openssl rand -hex 32` after `SESSION_SECRET=` in `.env`. Th
 - `POST /api/pets/{pet_id}/image`, `GET /api/pets/{pet_id}/image`
 - `POST /api/images/prepare` (authenticated JPEG preview for mugshot cropping; does not save a file)
 - `POST /api/pets/{pet_id}/incidents`, `GET /api/pets/{pet_id}/incidents`
+- `POST /api/pets/{pet_id}/events`, `GET /api/pets/{pet_id}/events`, `DELETE /api/events/{event_id}`
 - `POST /api/incidents/{incident_id}/image`, `GET /api/incidents/{incident_id}/image`
+- `POST /api/events/{event_id}/image`, `GET /api/events/{event_id}/image`
 - `DELETE /api/incidents/{incident_id}`
 - `GET /api/pets/{pet_id}/stats`
 
-Account routes accept JSON email and password. Registration and login set a signed, HTTP-only session cookie; logout clears it. Pets and incidents are private to their owner. Deleting a pet also deletes its incident reports and stored images. A pet's `image_url` is an optional string for a pasted link. New incidents use photo upload instead of an `image_url` in the create request; incident responses still include `image_url` for stored photos and older records. Statistics return null for the most common category and average severity when a pet has no incidents. Equal category counts are resolved alphabetically.
+Account routes accept JSON email and password. Registration and login set a signed, HTTP-only session cookie; logout clears it. Pets and events are private to their owner. Deleting a pet also deletes all its events and stored images. Existing incident routes create and return only `INCIDENT` rows; incident deletion and image routes cannot operate on other event types. A pet's `image_url` is an optional string for a pasted link. New incidents through the legacy route use photo upload instead of an `image_url` in the create request; incident responses still include `image_url` for stored photos and older records. Statistics retain the original incident-only fields and add total and per-type event counts. Most common category and average severity are null when a pet has no incidents. Equal category counts are resolved alphabetically.
 
-Image uploads use a multipart `file` field and accept Pillow-readable raster photos, including JPEG, PNG, WebP, HEIC/HEIF, TIFF, AVIF, BMP, and GIF, up to 15 MB and 50 megapixels. EPS is excluded. The server checks the photo's actual contents rather than trusting its file type label, then converts it to JPEG and stores it in `backend/uploads/` (or `UPLOAD_DIR` from `.env`). `/api/images/prepare` runs that same conversion and returns JPEG bytes without storing them, so the frontend can crop HEIC photos in the browser before a mugshot upload. The returned `image_url` points to a private `/api/.../image` route; the browser sends the account session cookie when loading it. Uploading again replaces the image. These files are local data: keep the uploads directory if you want to retain them, and set up persistent storage separately before deployment.
+The event API accepts `INCIDENT`, `GOOD_CONDUCT`, `FUNNY_MOMENT`, and `WELLNESS`. Use `event_time` in its JSON; the existing MySQL `incident_time` column stores it. Incidents require severity 1–5. Other types store null severity, even if a number is supplied. Categories are validated by type in `app/schemas.py`: existing crime categories for incidents; Good Behavior, Learned Something New, Calm During Grooming, Friendly Interaction, or Other for good conduct; Weird Sleeping Position, Funny Reaction, Got Stuck Somewhere, Random Chaos, or Other for funny moments; and Weight Check, Teeth Brushing, Nail Trim, Bath, Grooming, or Other for wellness. For example:
+
+```bash
+curl -fsS -b /tmp/pawlice-cookies.txt -X POST "$API/pets/$PET_ID/events" -H 'Content-Type: application/json' \
+  -d '{"event_type":"FUNNY_MOMENT","category":"Weird Sleeping Position","description":"Fell asleep upside down in a box"}'
+curl -fsS -b /tmp/pawlice-cookies.txt "$API/pets/$PET_ID/events"
+```
+
+Image uploads use a multipart `file` field and accept Pillow-readable raster photos, including JPEG, PNG, WebP, HEIC/HEIF, TIFF, AVIF, BMP, and GIF, up to 15 MB and 50 megapixels. EPS is excluded. The server checks the photo's actual contents rather than trusting its file type label, then converts it to JPEG and stores it in `backend/uploads/` (or `UPLOAD_DIR` from `.env`). `/api/images/prepare` runs that same conversion and returns JPEG bytes without storing them, so the frontend can crop HEIC photos in the browser before a mugshot upload. Event uploads reuse the existing `uploads/incidents/{id}.jpg` storage; old incident image URLs remain valid. The returned `image_url` points to a private `/api/.../image` route; the browser sends the account session cookie when loading it. Uploading again replaces the image. These files are local data: keep the uploads directory if you want to retain them, and set up persistent storage separately before deployment.
 
 For example, after creating a pet and incident, upload images with:
 
