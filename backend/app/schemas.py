@@ -167,6 +167,47 @@ class PetStats(BaseModel):
     wellness_count: int
 
 
+class ReportRequest(BaseModel):
+    period: str
+
+    @field_validator("period")
+    @classmethod
+    def valid_period(cls, value: str) -> str:
+        if value not in {"weekly", "monthly"}:
+            raise ValueError("Period must be weekly or monthly")
+        return value
+
+
+class ReportStats(BaseModel):
+    total_events: int
+    incident_count: int
+    good_conduct_count: int
+    funny_moment_count: int
+    wellness_count: int
+    most_common_incident_category: Optional[str]
+    average_incident_severity: Optional[float]
+    most_active_event_day: Optional[str]
+
+
+class ReportResponse(BaseModel):
+    pet_id: int
+    pet_name: str
+    period: str
+    period_start: datetime
+    period_end: datetime
+    stats: ReportStats
+    notable_events: list[EventRead]
+    headline: str
+    officer_summary: str
+    verdict: str
+    sentence: str
+    narrative_source: str
+
+    @field_serializer("period_start", "period_end")
+    def serialize_period_time(self, value: datetime) -> str:
+        return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr = Field(max_length=255)
     password: str = Field(min_length=8, max_length=128)

@@ -9,3 +9,4 @@ email-validator>=2.0,<3
 python-multipart>=0.0.20,<1
 Pillow>=10,<12
 pillow-heif>=1.1.1,<1.2
+openai>=2.48,<3

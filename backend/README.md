@@ -1,6 +1,6 @@
 # Pawlice Report API (local MVP)
 
-FastAPI backend for pets, incidents, journal events, and per-pet statistics. Dates and times are stored in UTC. A timestamp without a timezone is treated as UTC. A week begins Monday at 00:00 UTC.
+FastAPI backend for pets, incidents, journal events, per-pet statistics, and on-demand reports. Dates and times are stored in UTC. A timestamp without a timezone is treated as UTC. A week begins Monday at 00:00 UTC.
 
 ## Run locally with MySQL
 
@@ -56,6 +56,7 @@ The migration adds `event_type VARCHAR(20) NOT NULL DEFAULT 'INCIDENT'` and make
 - `POST /api/events/{event_id}/image`, `GET /api/events/{event_id}/image`
 - `DELETE /api/incidents/{incident_id}`
 - `GET /api/pets/{pet_id}/stats`
+- `POST /api/pets/{pet_id}/reports`
 
 Account routes accept JSON email and password. Registration and login set a signed, HTTP-only session cookie; logout clears it. Pets and events are private to their owner. Deleting a pet also deletes all its events and stored images. Existing incident routes create and return only `INCIDENT` rows; incident deletion and image routes cannot operate on other event types. A pet's `image_url` is an optional string for a pasted link. New incidents through the legacy route use photo upload instead of an `image_url` in the create request; incident responses still include `image_url` for stored photos and older records. Statistics retain the original incident-only fields and add total and per-type event counts. Most common category and average severity are null when a pet has no incidents. Equal category counts are resolved alphabetically.
 
@@ -65,6 +66,23 @@ The event API accepts `INCIDENT`, `GOOD_CONDUCT`, `FUNNY_MOMENT`, and `WELLNESS`
 curl -fsS -b /tmp/pawlice-cookies.txt -X POST "$API/pets/$PET_ID/events" -H 'Content-Type: application/json' \
   -d '{"event_type":"FUNNY_MOMENT","category":"Weird Sleeping Position","description":"Fell asleep upside down in a box"}'
 curl -fsS -b /tmp/pawlice-cookies.txt "$API/pets/$PET_ID/events"
+```
+
+## Weekly and monthly reports
+
+`POST /api/pets/{pet_id}/reports` accepts `{"period":"weekly"}` or `{"period":"monthly"}` for the authenticated pet owner. It returns the current UTC calendar week (Monday to next Monday) or month (first day to first day of next month). `period_start` is inclusive and `period_end` is exclusive. Reports are calculated on demand and are not saved. No database migration is needed.
+
+The response contains `pet_id`, `pet_name`, `period`, `period_start`, `period_end`, `stats`, `notable_events`, `headline`, `officer_summary`, `verdict`, `sentence`, and `narrative_source`. The `stats` object contains `total_events`, counts for each of the four event types, `most_common_incident_category`, `average_incident_severity`, and `most_active_event_day`. Incident category ties are resolved alphabetically; busiest-day ties use the earliest UTC date. Category and average severity are `null` when there are no incidents; busiest day is `null` when there are no events. Notable events include at most five records, preferring the highest-severity incident and the newest event of each other type, then filling by recency; they are returned newest first.
+
+Set `OPENAI_API_KEY` in the backend `.env` to enable optional narrative writing with the official OpenAI SDK. `OPENAI_MODEL` defaults to `gpt-4o-mini` and can be changed in `.env`. The four narrative strings are validated against a strict schema. Missing API keys, provider failures, timeouts, and invalid structured responses use deterministic local text, with `narrative_source` set to `fallback`. The response never includes the API key or raw provider errors. Only the pet name, report statistics, and up to five selected event notes are sent to the provider.
+
+With `API=http://127.0.0.1:8001/api`, `PET_ID` set, and an authenticated cookie jar from the manual checks below:
+
+```bash
+curl -fsS -b /tmp/pawlice-cookies.txt -X POST "$API/pets/$PET_ID/reports" \
+  -H 'Content-Type: application/json' -d '{"period":"weekly"}'
+curl -fsS -b /tmp/pawlice-cookies.txt -X POST "$API/pets/$PET_ID/reports" \
+  -H 'Content-Type: application/json' -d '{"period":"monthly"}'
 ```
 
 Image uploads use a multipart `file` field and accept Pillow-readable raster photos, including JPEG, PNG, WebP, HEIC/HEIF, TIFF, AVIF, BMP, and GIF, up to 15 MB and 50 megapixels. EPS is excluded. The server checks the photo's actual contents rather than trusting its file type label, then converts it to JPEG and stores it in `backend/uploads/` (or `UPLOAD_DIR` from `.env`). `/api/images/prepare` runs that same conversion and returns JPEG bytes without storing them, so the frontend can crop HEIC photos in the browser before a mugshot upload. Event uploads reuse the existing `uploads/incidents/{id}.jpg` storage; old incident image URLs remain valid. The returned `image_url` points to a private `/api/.../image` route; the browser sends the account session cookie when loading it. Uploading again replaces the image. These files are local data: keep the uploads directory if you want to retain them, and set up persistent storage separately before deployment.
@@ -115,7 +133,7 @@ docker exec pawlice-report-mysql mysql -upawlice -ppawlice pawlice_report \
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+python -m pytest -q
 ```
 
 Tests exercise the API with an in-memory SQLite database, so they do not need MySQL running.

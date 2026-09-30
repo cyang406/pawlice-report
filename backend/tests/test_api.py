@@ -15,6 +15,7 @@ from app import main
 from app.database import Base, get_db
 from app.models import Incident, Pet, PetOwner, User
 from app import storage
+from app.reports import calculator, report_writer
 
 
 def register(client, email="owner@example.com"):
@@ -428,3 +429,60 @@ def test_image_upload_access_validation_and_cleanup(client, monkeypatch):
     assert not storage.image_path("incidents", incident_id).exists()
     assert client.delete(f"/api/pets/{pet_id}").status_code == 204
     assert not storage.image_path("pets", pet_id).exists()
+
+
+def test_reports_api_access_facts_and_provider_fallbacks(client, monkeypatch):
+    monkeypatch.setattr(calculator, "utc_now", lambda: datetime(2026, 9, 30))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert client.post("/api/pets/1/reports", json={"period": "weekly"}).status_code == 401
+    register(client)
+    pet_id = client.post("/api/pets", json={"name": "Pip", "species": "Dog"}).json()["id"]
+    assert client.post("/api/pets/999/reports", json={"period": "weekly"}).status_code == 404
+    assert client.post(f"/api/pets/{pet_id}/reports", json={"period": "yearly"}).status_code == 422
+
+    incident = client.post(f"/api/pets/{pet_id}/events", json={
+        "event_type": "INCIDENT", "category": "Food Theft", "description": "Took a biscuit",
+        "severity": 4, "event_time": "2026-09-29T12:00:00Z",
+    }).json()
+    good = client.post(f"/api/pets/{pet_id}/events", json={
+        "event_type": "GOOD_CONDUCT", "category": "Good Behavior", "description": "Sat nicely",
+        "event_time": "2026-09-29T13:00:00Z",
+    }).json()
+    weekly = client.post(f"/api/pets/{pet_id}/reports", json={"period": "weekly"})
+    assert weekly.status_code == 200, weekly.text
+    body = weekly.json()
+    assert body["period_start"] == "2026-09-28T00:00:00Z"
+    assert body["period_end"] == "2026-10-05T00:00:00Z"
+    assert body["stats"] == {
+        "total_events": 2, "incident_count": 1, "good_conduct_count": 1,
+        "funny_moment_count": 0, "wellness_count": 0,
+        "most_common_incident_category": "Food Theft", "average_incident_severity": 4.0,
+        "most_active_event_day": "Tuesday",
+    }
+    assert [event["id"] for event in body["notable_events"]] == [good["id"], incident["id"]]
+    assert body["narrative_source"] == "fallback"
+
+    monthly = client.post(f"/api/pets/{pet_id}/reports", json={"period": "monthly"})
+    assert monthly.status_code == 200
+    assert monthly.json()["period_start"] == "2026-09-01T00:00:00Z"
+    assert monthly.json()["period_end"] == "2026-10-01T00:00:00Z"
+    assert monthly.json()["stats"] == body["stats"]
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(report_writer, "write_with_openai", lambda *args: {
+        "headline": "Case Notes", "officer_summary": "Pip took a biscuit and also sat nicely.",
+        "verdict": "Lovable suspect.", "sentence": "Extra praise.",
+    })
+    llm = client.post(f"/api/pets/{pet_id}/reports", json={"period": "weekly"}).json()
+    assert llm["narrative_source"] == "llm"
+    assert llm["headline"] == "Case Notes"
+    assert llm["stats"] == body["stats"]
+
+    monkeypatch.setattr(report_writer, "write_with_openai", lambda *args: (_ for _ in ()).throw(TimeoutError()))
+    assert client.post(f"/api/pets/{pet_id}/reports", json={"period": "weekly"}).json()["narrative_source"] == "fallback"
+    monkeypatch.setattr(report_writer, "write_with_openai", lambda *args: {"headline": "Only one field"})
+    assert client.post(f"/api/pets/{pet_id}/reports", json={"period": "weekly"}).json()["narrative_source"] == "fallback"
+
+    assert client.post("/api/auth/logout").status_code == 204
+    register(client, "other@example.com")
+    assert client.post(f"/api/pets/{pet_id}/reports", json={"period": "weekly"}).status_code == 404
