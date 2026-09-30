@@ -4,6 +4,7 @@ import { api } from './api/client.js'
 import MySuspects from './pages/MySuspects.jsx'
 import AddPet from './pages/AddPet.jsx'
 import PetProfile from './pages/PetProfile.jsx'
+import PawliceReport from './pages/PawliceReport.jsx'
 import AuthPage from './pages/AuthPage.jsx'
 
 function PrivatePage({ user, children }) {
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/" element={<PrivatePage user={user}><MySuspects /></PrivatePage>} />
           <Route path="/pets/new" element={<PrivatePage user={user}><AddPet /></PrivatePage>} />
           <Route path="/pets/:id" element={<PrivatePage user={user}><PetProfile /></PrivatePage>} />
+          <Route path="/pets/:id/report" element={<PrivatePage user={user}><PawliceReport /></PrivatePage>} />
           <Route path="*" element={
             <div className="page-container missing-page">
               <p className="eyebrow">FILE NOT FOUND</p>

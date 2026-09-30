@@ -187,6 +187,7 @@ export default function PetProfile() {
 
       <div className="profile-actions">
         <span>CASE FILE NO. {String(pet.id).padStart(4, '0')}</span>
+        <Link className="button button-primary profile-report-link" to={`/pets/${id}/report`}>Generate Pawlice Report →</Link>
         <label className="inline-upload">
           <span>{uploadingPet ? 'Uploading mugshot...' : pet.image_url ? 'Replace mugshot' : 'Upload mugshot'}</span>
           <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={handlePetImage} disabled={uploadingPet || Boolean(pendingMugshot) || deletingPet} aria-label="Upload or replace suspect mugshot" />

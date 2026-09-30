@@ -48,6 +48,8 @@ export const api = {
   listIncidents: (petId) => request(`/api/pets/${petId}/incidents`),
   listEvents: (petId) => request(`/api/pets/${petId}/events`),
   getStats: (petId) => request(`/api/pets/${petId}/stats`),
+  generateReport: (petId, period) =>
+    request(`/api/pets/${petId}/reports`, { method: 'POST', body: JSON.stringify({ period }) }),
   createIncident: (petId, incident) =>
     request(`/api/pets/${petId}/incidents`, { method: 'POST', body: JSON.stringify(incident) }),
   createEvent: (petId, event) =>
