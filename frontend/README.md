@@ -11,7 +11,7 @@ npm install
 npm run dev -- --host 127.0.0.1
 ```
 
-Open `http://127.0.0.1:5173/`. Create an account or sign in, then use `/` (My Suspects), `/pets/new` (Add Pet), and `/pets/:id` (Pet Criminal Profile). Each account sees only its own pets. The profile page can delete a pet and all of its incidents. Upload a mugshot while adding a pet or from its profile; upload evidence when filing a report or from an incident card. JPEG, PNG, and WebP images up to 5 MB are accepted. The existing image URL fields still accept links; an uploaded file takes priority when both are supplied.
+Open `http://127.0.0.1:5173/`. Create an account or sign in, then use `/` (My Suspects), `/pets/new` (Add Pet), and `/pets/:id` (Pet Criminal Profile). Each account sees only its own pets. The profile page can delete a pet and all of its incidents. Upload a mugshot while adding a pet or from its profile; upload evidence when filing a report or from an incident card. Common Photos formats including JPEG, PNG, HEIC/HEIF, TIFF, AVIF, and WebP are accepted up to 15 MB. The existing image URL fields still accept links; an uploaded file takes priority when both are supplied.
 
 To check the production compilation locally, run `npm run build`.
 

@@ -181,7 +181,7 @@ export default function PetProfile() {
         <span>CASE FILE NO. {String(pet.id).padStart(4, '0')}</span>
         <label className="inline-upload">
           <span>{uploadingPet ? 'Uploading mugshot...' : pet.image_url ? 'Replace mugshot' : 'Upload mugshot'}</span>
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePetImage} disabled={uploadingPet || deletingPet} aria-label="Upload or replace suspect mugshot" />
+          <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={handlePetImage} disabled={uploadingPet || deletingPet} aria-label="Upload or replace suspect mugshot" />
         </label>
         <button type="button" onClick={handleDeletePet} disabled={deletingPet}>
           {deletingPet ? 'Deleting profile...' : 'Delete suspect profile'}
@@ -227,7 +227,7 @@ export default function PetProfile() {
                       <span>{incident.image_url ? 'EVIDENCE ATTACHED' : 'NO PHOTO EVIDENCE'}</span>
                       <label className="inline-upload">
                         <span>{uploadingIncidentId === incident.id ? 'Uploading...' : incident.image_url ? 'Replace evidence' : 'Upload evidence'}</span>
-                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => handleIncidentImage(incident.id, event)} disabled={uploadingIncidentId !== null || deletingId !== null || deletingPet} aria-label={`Upload or replace evidence for incident ${incident.id}`} />
+                        <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => handleIncidentImage(incident.id, event)} disabled={uploadingIncidentId !== null || deletingId !== null || deletingPet} aria-label={`Upload or replace evidence for incident ${incident.id}`} />
                       </label>
                       <button type="button" onClick={() => handleDelete(incident.id)} disabled={deletingId !== null}>
                         {deletingId === incident.id ? 'Deleting...' : 'Delete report'}

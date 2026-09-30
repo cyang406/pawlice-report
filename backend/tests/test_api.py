@@ -1,8 +1,10 @@
 import os
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -12,6 +14,7 @@ os.environ.setdefault("SESSION_SECRET", "test-session-secret-longer-than-thirty-
 from app import main
 from app.database import Base, get_db
 from app.models import Incident, Pet, PetOwner, User
+from app import storage
 
 
 def register(client, email="owner@example.com"):
@@ -28,8 +31,6 @@ def client(monkeypatch, tmp_path):
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    from app import storage
-    monkeypatch.setattr(storage, "upload_dir", tmp_path / "uploads")
     monkeypatch.setattr(storage, "upload_dir", tmp_path / "uploads")
     sessions = sessionmaker(bind=engine)
 
@@ -193,23 +194,105 @@ def test_first_account_claims_existing_unowned_pets(client):
     assert pets[0]["name"] == "Legacy"
 
 
-from io import BytesIO
-from PIL import Image
-from app import storage
-
-
 def png_bytes():
     output = BytesIO()
-    Image.new("RGB", (12, 12), "red").save(output, format="PNG")
+    Image.new("RGBA", (12, 12), (200, 40, 30, 128)).save(output, format="PNG")
     return output.getvalue()
 
 
-def test_image_upload(client):
+def heic_bytes():
+    output = BytesIO()
+    Image.new("RGB", (12, 12), (200, 40, 30)).save(output, format="HEIF")
+    return output.getvalue()
+
+
+def test_image_upload_access_validation_and_cleanup(client, monkeypatch):
     register(client)
     pet_id = client.post("/api/pets", json={"name": "Pixel", "species": "Cat"}).json()["id"]
-    response = client.post(f"/api/pets/{pet_id}/image", files={"file": ("pixel.png", png_bytes(), "image/png")})
-    assert response.status_code == 200
-    assert client.get(response.json()["image_url"]).content.startswith(b"\xff\xd8")
-    assert storage.image_path("pets", pet_id).exists()
+    pet_upload = client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("pixel.png", png_bytes(), "image/png")},
+    )
+    assert pet_upload.status_code == 200
+    pet_url = pet_upload.json()["image_url"]
+    assert pet_url.startswith(f"/api/pets/{pet_id}/image?v=")
+    pet_image = client.get(pet_url)
+    assert pet_image.status_code == 200
+    assert pet_image.headers["content-type"] == "image/jpeg"
+    assert pet_image.headers["cache-control"] == "private, no-store"
+    assert pet_image.content.startswith(b"\xff\xd8")
+    heic_upload = client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("photo", heic_bytes(), "application/x-apple-photo")},
+    )
+    assert heic_upload.status_code == 200, heic_upload.text
+    assert heic_upload.json()["image_url"] != pet_url
+    assert client.get(heic_upload.json()["image_url"]).content.startswith(b"\xff\xd8")
+    tiff = BytesIO()
+    Image.new("RGB", (12, 12), "red").save(tiff, format="TIFF")
+    tiff_upload = client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("photo.tiff", tiff.getvalue(), "image/tiff")},
+    )
+    assert tiff_upload.status_code == 200, tiff_upload.text
+    assert client.get(tiff_upload.json()["image_url"]).content.startswith(b"\xff\xd8")
+    unusual = BytesIO()
+    Image.new("RGB", (12, 12), "red").save(unusual, format="PPM")
+    unusual_upload = client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("photo", unusual.getvalue(), "application/x-photos-image")},
+    )
+    assert unusual_upload.status_code == 200, unusual_upload.text
+
+    incident_id = client.post(
+        f"/api/pets/{pet_id}/incidents",
+        json={"category": "Other", "description": "Suspicious nap", "severity": 1},
+    ).json()["id"]
+    incident_upload = client.post(
+        f"/api/incidents/{incident_id}/image",
+        files={"file": ("evidence.png", png_bytes(), "image/png")},
+    )
+    assert incident_upload.status_code == 200
+    incident_url = incident_upload.json()["image_url"]
+    assert client.get(incident_url).status_code == 200
+    assert storage.image_path("pets", pet_id).is_file()
+    assert storage.image_path("incidents", incident_id).is_file()
+
+    unreadable = client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("bad.txt", b"not an image", "text/plain")},
+    )
+    assert unreadable.status_code == 422
+    assert "Export it from Photos as JPEG" in unreadable.json()["detail"]
+    assert client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("bad.png", b"not an image", "image/png")},
+    ).status_code == 422
+    with monkeypatch.context() as patch:
+        patch.setattr(storage, "MAX_IMAGE_PIXELS", 100)
+        too_large = client.post(
+            f"/api/pets/{pet_id}/image",
+            files={"file": ("large.png", png_bytes(), "image/png")},
+        )
+    assert too_large.status_code == 422
+    assert "50 megapixels" in too_large.json()["detail"]
+    assert client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("huge.png", b"x" * (storage.MAX_FILE_BYTES + 1), "image/png")},
+    ).status_code == 413
+
+    assert client.post("/api/auth/logout").status_code == 204
+    register(client, "other@example.com")
+    assert client.get(pet_url).status_code == 404
+    assert client.get(incident_url).status_code == 404
+    assert client.post(
+        f"/api/pets/{pet_id}/image",
+        files={"file": ("pixel.png", png_bytes(), "image/png")},
+    ).status_code == 404
+
+    assert client.post("/api/auth/logout").status_code == 204
+    assert client.post("/api/auth/login", json={"email": "owner@example.com", "password": "safe-password-123"}).status_code == 200
+    assert client.delete(f"/api/incidents/{incident_id}").status_code == 204
+    assert not storage.image_path("incidents", incident_id).exists()
     assert client.delete(f"/api/pets/{pet_id}").status_code == 204
     assert not storage.image_path("pets", pet_id).exists()

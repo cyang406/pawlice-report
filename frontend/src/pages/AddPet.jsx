@@ -91,8 +91,8 @@ export default function AddPet() {
             </label>
             <label className="field field-full">
               <span>UPLOAD MUGSHOT</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] || null)} />
-              <small>Choose a photo from Photos or your files · 5 MB maximum. Some formats preview after upload. A selected file takes priority over a pasted URL.</small>
+              <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => setImageFile(event.target.files?.[0] || null)} />
+              <small>Choose a photo from Photos or your files · 15 MB maximum. Some formats preview after upload. A selected file takes priority over a pasted URL.</small>
             </label>
             <label className="field field-full">
               <span>MUGSHOT IMAGE URL</span>
