@@ -1,5 +1,5 @@
 # Pawlice Report frontend
 
-React + Vite local MVP. Vite proxies relative `/api` paths to FastAPI on port 8001.
+React + Vite app with account registration and private pet profiles. Vite proxies `/api` to port 8001.
 
 Run `npm install` and `npm run dev` from `frontend/`.

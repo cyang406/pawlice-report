@@ -15,9 +15,14 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  me: () => request('/api/auth/me'),
+  register: (credentials) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(credentials) }),
+  login: (credentials) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
+  logout: () => request('/api/auth/logout', { method: 'POST' }),
   listPets: () => request('/api/pets'),
   getPet: (id) => request(`/api/pets/${id}`),
   createPet: (pet) => request('/api/pets', { method: 'POST', body: JSON.stringify(pet) }),
+  deletePet: (id) => request(`/api/pets/${id}`, { method: 'DELETE' }),
   listIncidents: (petId) => request(`/api/pets/${petId}/incidents`),
   getStats: (petId) => request(`/api/pets/${petId}/stats`),
   createIncident: (petId, incident) => request(`/api/pets/${petId}/incidents`, { method: 'POST', body: JSON.stringify(incident) }),

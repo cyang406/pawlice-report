@@ -1,5 +1,5 @@
 # Pawlice Report backend
 
-Local FastAPI, MySQL, and SQLAlchemy API for pets, incidents, and per-pet statistics.
+FastAPI, MySQL, SQLAlchemy, and signed cookie accounts. Pets and incidents are private to their owner. Pet profiles can be deleted.
 
-Run from `backend/` with `uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload`.
+Set `DATABASE_URL` and `SESSION_SECRET` in `backend/.env`, then run `uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload`.

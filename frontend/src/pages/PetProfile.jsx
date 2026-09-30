@@ -7,6 +7,7 @@ import PetImage from '../components/PetImage.jsx'
 
 export default function PetProfile() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [pet, setPet] = useState(null)
   const [incidents, setIncidents] = useState([])
   const [stats, setStats] = useState(null)
@@ -14,6 +15,7 @@ export default function PetProfile() {
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [deletingPet, setDeletingPet] = useState(false)
   useEffect(() => {
     let active = true
     Promise.all([api.getPet(id), api.listIncidents(id), api.getStats(id)])
@@ -34,6 +36,12 @@ export default function PetProfile() {
     catch (err) { setActionError(err.message) }
     finally { setDeletingId(null) }
   }
+  async function removePet() {
+    if (!window.confirm(`Delete ${pet.name}'s profile and all incident reports?`)) return
+    setActionError(''); setDeletingPet(true)
+    try { await api.deletePet(id); navigate('/') }
+    catch (err) { setActionError(err.message); setDeletingPet(false) }
+  }
   if (loading) return <div className="page-container profile-loading" role="status">Retrieving case file...</div>
   if (error || !pet || !stats) return <div className="page-container missing-page" role="alert"><h1>Case file unavailable</h1><p>{error}</p><Link to="/">Back to suspects</Link></div>
   return <div className="page-container profile-page">
@@ -45,6 +53,8 @@ export default function PetProfile() {
             <div><small>BREED</small><strong>{pet.breed || 'Unknown'}</strong></div>
             {pet.birthday && <div><small>DATE OF BIRTH</small><strong>{pet.birthday}</strong></div>}</div></div>
       </div></section>
+    <div className="profile-actions"><span>CASE FILE NO. {String(pet.id).padStart(4, '0')}</span>
+      <button type="button" onClick={removePet} disabled={deletingPet}>{deletingPet ? 'Deleting profile...' : 'Delete suspect profile'}</button></div>
     {actionError && <p className="form-error" role="alert">{actionError}</p>}
     <section className="stats-section"><div className="section-heading"><span>CASE STATISTICS</span><span>AT A GLANCE</span></div>
       <div className="stats-grid">
