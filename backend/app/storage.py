@@ -27,7 +27,7 @@ def remove_image(kind: str, record_id: int) -> None:
     image_path(kind, record_id).unlink(missing_ok=True)
 
 
-def save_image(file: UploadFile, kind: str, record_id: int) -> None:
+def prepare_image(file: UploadFile) -> bytes:
     raw = file.file.read(MAX_FILE_BYTES + 1)
     if len(raw) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="Image must be 15 MB or smaller")
@@ -52,10 +52,16 @@ def save_image(file: UploadFile, kind: str, record_id: int) -> None:
     except (UnidentifiedImageError, OSError, ValueError):
         raise HTTPException(status_code=422, detail="Could not read this file as a photo. Export it from Photos as JPEG and try again") from None
 
+    return encoded.getvalue()
+
+
+def save_image(file: UploadFile, kind: str, record_id: int) -> None:
+    image_bytes = prepare_image(file)
+
     destination = image_path(kind, record_id)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".upload-", suffix=".jpg", delete=False) as temporary:
-        temporary.write(encoded.getvalue())
+        temporary.write(image_bytes)
         temporary_path = Path(temporary.name)
     try:
         os.replace(temporary_path, destination)

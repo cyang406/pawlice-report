@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client.js'
+import MugshotCropper from '../components/MugshotCropper.jsx'
 import PetImage from '../components/PetImage.jsx'
 
 const initialForm = { name: '', species: '', breed: '', birthday: '', image_url: '' }
@@ -9,6 +10,7 @@ export default function AddPet() {
   const navigate = useNavigate()
   const [form, setForm] = useState(initialForm)
   const [imageFile, setImageFile] = useState(null)
+  const [pendingFile, setPendingFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -91,8 +93,8 @@ export default function AddPet() {
             </label>
             <label className="field field-full">
               <span>UPLOAD MUGSHOT</span>
-              <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => setImageFile(event.target.files?.[0] || null)} />
-              <small>Choose a photo from Photos or your files · 15 MB maximum. Some formats preview after upload. A selected file takes priority over a pasted URL.</small>
+              <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => { setPendingFile(event.target.files?.[0] || null); event.target.value = '' }} />
+              <small>{imageFile ? 'Square mugshot ready. Choose another photo to change the crop.' : 'Choose a photo, then crop it before creating the case file.'} 15 MB maximum.</small>
             </label>
             <label className="field field-full">
               <span>MUGSHOT IMAGE URL</span>
@@ -104,7 +106,7 @@ export default function AddPet() {
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="form-actions">
             <Link className="button button-quiet" to="/">Cancel</Link>
-            <button className="button button-primary" type="submit" disabled={submitting}>
+            <button className="button button-primary" type="submit" disabled={submitting || Boolean(pendingFile)}>
               {submitting ? 'Opening file...' : 'Create case file →'}
             </button>
           </div>
@@ -121,6 +123,11 @@ export default function AddPet() {
           <span className="preview-stamp">UNDER<br />INVESTIGATION</span>
         </aside>
       </div>
+      {pendingFile && <MugshotCropper
+        file={pendingFile}
+        onSave={(croppedFile) => { setImageFile(croppedFile); setPendingFile(null) }}
+        onCancel={() => setPendingFile(null)}
+      />}
     </div>
   )
 }

@@ -54,7 +54,6 @@ class IncidentCreate(BaseModel):
     description: str = Field(min_length=1)
     severity: int = Field(ge=1, le=5)
     incident_time: datetime = Field(default_factory=utc_now)
-    image_url: Optional[str] = Field(default=None, max_length=2048)
 
     @field_validator("description")
     @classmethod
@@ -78,6 +77,7 @@ class IncidentRead(IncidentCreate):
 
     id: int
     pet_id: int
+    image_url: Optional[str] = None
     created_at: datetime
 
     @field_serializer("incident_time", "created_at")

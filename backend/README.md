@@ -38,14 +38,15 @@ Paste the output of `openssl rand -hex 32` after `SESSION_SECRET=` in `.env`. Th
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `POST /api/pets`, `GET /api/pets`, `GET /api/pets/{pet_id}`, `DELETE /api/pets/{pet_id}`
 - `POST /api/pets/{pet_id}/image`, `GET /api/pets/{pet_id}/image`
+- `POST /api/images/prepare` (authenticated JPEG preview for mugshot cropping; does not save a file)
 - `POST /api/pets/{pet_id}/incidents`, `GET /api/pets/{pet_id}/incidents`
 - `POST /api/incidents/{incident_id}/image`, `GET /api/incidents/{incident_id}/image`
 - `DELETE /api/incidents/{incident_id}`
 - `GET /api/pets/{pet_id}/stats`
 
-Account routes accept JSON email and password. Registration and login set a signed, HTTP-only session cookie; logout clears it. Pets and incidents are private to their owner. Deleting a pet also deletes its incident reports and stored images. Pet and incident `image_url` values remain optional strings for pasted links. Statistics return null for the most common category and average severity when a pet has no incidents. Equal category counts are resolved alphabetically.
+Account routes accept JSON email and password. Registration and login set a signed, HTTP-only session cookie; logout clears it. Pets and incidents are private to their owner. Deleting a pet also deletes its incident reports and stored images. A pet's `image_url` is an optional string for a pasted link. New incidents use photo upload instead of an `image_url` in the create request; incident responses still include `image_url` for stored photos and older records. Statistics return null for the most common category and average severity when a pet has no incidents. Equal category counts are resolved alphabetically.
 
-Image uploads use a multipart `file` field and accept Pillow-readable raster photos, including JPEG, PNG, WebP, HEIC/HEIF, TIFF, AVIF, BMP, and GIF, up to 15 MB and 50 megapixels. EPS is excluded. The server checks the photo's actual contents rather than trusting its file type label, then converts it to JPEG and stores it in `backend/uploads/` (or `UPLOAD_DIR` from `.env`). The returned `image_url` points to a private `/api/.../image` route; the browser sends the account session cookie when loading it. Uploading again replaces the image. These files are local data: keep the uploads directory if you want to retain them, and set up persistent storage separately before deployment.
+Image uploads use a multipart `file` field and accept Pillow-readable raster photos, including JPEG, PNG, WebP, HEIC/HEIF, TIFF, AVIF, BMP, and GIF, up to 15 MB and 50 megapixels. EPS is excluded. The server checks the photo's actual contents rather than trusting its file type label, then converts it to JPEG and stores it in `backend/uploads/` (or `UPLOAD_DIR` from `.env`). `/api/images/prepare` runs that same conversion and returns JPEG bytes without storing them, so the frontend can crop HEIC photos in the browser before a mugshot upload. The returned `image_url` points to a private `/api/.../image` route; the browser sends the account session cookie when loading it. Uploading again replaces the image. These files are local data: keep the uploads directory if you want to retain them, and set up persistent storage separately before deployment.
 
 For example, after creating a pet and incident, upload images with:
 

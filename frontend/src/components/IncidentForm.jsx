@@ -14,7 +14,7 @@ function localDateTime() {
 export default function IncidentForm({ onReport }) {
   const [form, setForm] = useState({
     category: categories[0], description: '', severity: '3',
-    incident_time: localDateTime(), image_url: '',
+    incident_time: localDateTime(),
   })
   const [submitting, setSubmitting] = useState(false)
   const [imageFile, setImageFile] = useState(null)
@@ -39,11 +39,10 @@ export default function IncidentForm({ onReport }) {
         description: form.description.trim(),
         severity: Number(form.severity),
         incident_time: new Date(form.incident_time).toISOString(),
-        image_url: imageFile ? null : form.image_url.trim() || null,
       }, imageFile)
       setForm((current) => ({
         ...current, description: '', severity: '3',
-        incident_time: localDateTime(), image_url: '',
+        incident_time: localDateTime(),
       }))
       setImageFile(null)
       setFileInputKey((key) => key + 1)
@@ -84,18 +83,14 @@ export default function IncidentForm({ onReport }) {
           <span>WHAT HAPPENED? *</span>
           <textarea name="description" value={form.description} onChange={update} required rows={4} placeholder="Describe the alleged offense..." />
         </label>
-        <label className="field">
+        <label className="field field-full">
           <span>DATE & TIME *</span>
           <input type="datetime-local" name="incident_time" value={form.incident_time} onChange={update} required />
-        </label>
-        <label className="field">
-          <span>EVIDENCE IMAGE URL</span>
-          <input name="image_url" value={form.image_url} onChange={update} maxLength={2048} placeholder="https://example.com/evidence.jpg" />
         </label>
         <label className="field field-full">
           <span>UPLOAD EVIDENCE PHOTO</span>
           <input key={fileInputKey} type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={(event) => { setImageFile(event.target.files?.[0] || null); setSuccess(false) }} />
-          <small>Choose a photo from Photos or your files · 15 MB maximum. A selected file takes priority over a pasted URL.</small>
+          <small>Optional photo from Photos or your files · 15 MB maximum.</small>
         </label>
       </div>
 

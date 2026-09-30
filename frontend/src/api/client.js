@@ -1,4 +1,4 @@
-async function request(path, options = {}) {
+async function request(path, options = {}, responseType = 'json') {
   let response
   try {
     const isFormData = options.body instanceof FormData
@@ -16,15 +16,16 @@ async function request(path, options = {}) {
 
   if (response.status === 204) return null
 
-  const data = await response.json().catch(() => null)
   if (!response.ok) {
+    const data = await response.json().catch(() => null)
     const detail = data?.detail
     const message = typeof detail === 'string' ? detail : 'Please check the form and try again.'
     const error = new Error(message)
     error.status = response.status
     throw error
   }
-  return data
+  if (responseType === 'blob') return response.blob()
+  return response.json()
 }
 
 function imageBody(file) {
@@ -41,6 +42,7 @@ export const api = {
   listPets: () => request('/api/pets'),
   getPet: (id) => request(`/api/pets/${id}`),
   createPet: (pet) => request('/api/pets', { method: 'POST', body: JSON.stringify(pet) }),
+  prepareMugshot: (file) => request('/api/images/prepare', { method: 'POST', body: imageBody(file) }, 'blob'),
   uploadPetImage: (id, file) => request(`/api/pets/${id}/image`, { method: 'POST', body: imageBody(file) }),
   deletePet: (id) => request(`/api/pets/${id}`, { method: 'DELETE' }),
   listIncidents: (petId) => request(`/api/pets/${petId}/incidents`),

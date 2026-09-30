@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client.js'
 import EvidenceImage from '../components/EvidenceImage.jsx'
 import IncidentForm from '../components/IncidentForm.jsx'
+import MugshotCropper from '../components/MugshotCropper.jsx'
 import PetImage from '../components/PetImage.jsx'
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -21,6 +22,7 @@ export default function PetProfile() {
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState(location.state?.uploadError || '')
   const [uploadingPet, setUploadingPet] = useState(false)
+  const [pendingMugshot, setPendingMugshot] = useState(null)
   const [uploadingIncidentId, setUploadingIncidentId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [deletingPet, setDeletingPet] = useState(false)
@@ -69,16 +71,21 @@ export default function PetProfile() {
     if (uploadError) setActionError(uploadError)
   }
 
-  async function handlePetImage(event) {
+  function handlePetImage(event) {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     setActionError('')
+    setPendingMugshot(file)
+  }
+
+  async function saveMugshot(file) {
     setUploadingPet(true)
     try {
       setPet(await api.uploadPetImage(id, file))
+      setPendingMugshot(null)
     } catch (err) {
-      setActionError(`Mugshot upload failed: ${err.message}`)
+      throw new Error(`Mugshot upload failed: ${err.message}`)
     } finally {
       setUploadingPet(false)
     }
@@ -181,7 +188,7 @@ export default function PetProfile() {
         <span>CASE FILE NO. {String(pet.id).padStart(4, '0')}</span>
         <label className="inline-upload">
           <span>{uploadingPet ? 'Uploading mugshot...' : pet.image_url ? 'Replace mugshot' : 'Upload mugshot'}</span>
-          <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={handlePetImage} disabled={uploadingPet || deletingPet} aria-label="Upload or replace suspect mugshot" />
+          <input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.avif" onChange={handlePetImage} disabled={uploadingPet || Boolean(pendingMugshot) || deletingPet} aria-label="Upload or replace suspect mugshot" />
         </label>
         <button type="button" onClick={handleDeletePet} disabled={deletingPet}>
           {deletingPet ? 'Deleting profile...' : 'Delete suspect profile'}
@@ -242,6 +249,7 @@ export default function PetProfile() {
 
         <aside className="report-column"><IncidentForm onReport={handleReport} /></aside>
       </div>
+      {pendingMugshot && <MugshotCropper file={pendingMugshot} onSave={saveMugshot} onCancel={() => setPendingMugshot(null)} />}
     </div>
   )
 }

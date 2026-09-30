@@ -93,11 +93,10 @@ def test_pet_incident_and_stats_flow(client):
                 "description": "Caught red-pawed",
                 "severity": severity,
                 "incident_time": incident_time.isoformat(),
-                "image_url": "evidence.jpg",
             },
         )
         assert response.status_code == 201
-        assert response.json()["image_url"] == "evidence.jpg"
+        assert response.json()["image_url"] is None
         assert response.json()["incident_time"].endswith("Z")
         ids.append(response.json()["id"])
 
@@ -207,7 +206,19 @@ def heic_bytes():
 
 
 def test_image_upload_access_validation_and_cleanup(client, monkeypatch):
+    assert client.post(
+        "/api/images/prepare",
+        files={"file": ("photo.heic", heic_bytes(), "image/heic")},
+    ).status_code == 401
     register(client)
+    prepared = client.post(
+        "/api/images/prepare",
+        files={"file": ("photo.heic", heic_bytes(), "image/heic")},
+    )
+    assert prepared.status_code == 200
+    assert prepared.headers["content-type"] == "image/jpeg"
+    assert prepared.content.startswith(b"\xff\xd8")
+    assert not storage.upload_dir.exists()
     pet_id = client.post("/api/pets", json={"name": "Pixel", "species": "Cat"}).json()["id"]
     pet_upload = client.post(
         f"/api/pets/{pet_id}/image",

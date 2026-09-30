@@ -1,19 +1,28 @@
 from secrets import token_hex
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from ..auth import current_user
 from ..database import get_db
 from ..models import User
 from ..schemas import IncidentRead, PetRead
-from ..storage import image_path, save_image
+from ..storage import image_path, prepare_image, save_image
 from .incidents import find_incident
 from .pets import find_pet
 
 
 router = APIRouter(tags=["images"])
+
+
+@router.post("/api/images/prepare", response_class=Response)
+def prepare_mugshot_image(file: UploadFile = File(...), user: User = Depends(current_user)):
+    return Response(
+        content=prepare_image(file),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 def image_response(kind: str, record_id: int) -> FileResponse:
