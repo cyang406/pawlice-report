@@ -6,3 +6,5 @@ python-dotenv>=1.0,<2
 pwdlib[argon2]>=0.2.1,<1
 itsdangerous>=2.2,<3
 email-validator>=2.0,<3
+python-multipart>=0.0.20,<1
+Pillow>=10,<12

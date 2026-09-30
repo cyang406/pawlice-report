@@ -28,6 +28,9 @@ def client(monkeypatch, tmp_path):
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
+    from app import storage
+    monkeypatch.setattr(storage, "upload_dir", tmp_path / "uploads")
+    monkeypatch.setattr(storage, "upload_dir", tmp_path / "uploads")
     sessions = sessionmaker(bind=engine)
 
     def test_db():
@@ -190,3 +193,23 @@ def test_first_account_claims_existing_unowned_pets(client):
     assert pets[0]["name"] == "Legacy"
 
 
+from io import BytesIO
+from PIL import Image
+from app import storage
+
+
+def png_bytes():
+    output = BytesIO()
+    Image.new("RGB", (12, 12), "red").save(output, format="PNG")
+    return output.getvalue()
+
+
+def test_image_upload(client):
+    register(client)
+    pet_id = client.post("/api/pets", json={"name": "Pixel", "species": "Cat"}).json()["id"]
+    response = client.post(f"/api/pets/{pet_id}/image", files={"file": ("pixel.png", png_bytes(), "image/png")})
+    assert response.status_code == 200
+    assert client.get(response.json()["image_url"]).content.startswith(b"\xff\xd8")
+    assert storage.image_path("pets", pet_id).exists()
+    assert client.delete(f"/api/pets/{pet_id}").status_code == 204
+    assert not storage.image_path("pets", pet_id).exists()

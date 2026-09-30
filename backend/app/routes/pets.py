@@ -9,6 +9,7 @@ from ..auth import current_user
 from ..database import get_db, utc_now
 from ..models import Incident, Pet, PetOwner, User
 from ..schemas import IncidentCreate, IncidentRead, PetCreate, PetRead, PetStats
+from ..storage import remove_image
 
 
 router = APIRouter(prefix="/api/pets", tags=["pets"])
@@ -52,10 +53,14 @@ def get_pet(pet_id: int, db: Session = Depends(get_db), user: User = Depends(cur
 @router.delete("/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_pet(pet_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     pet = find_pet(db, pet_id, user.id)
+    incident_ids = db.scalars(select(Incident.id).where(Incident.pet_id == pet_id)).all()
     db.execute(delete(Incident).where(Incident.pet_id == pet_id))
     db.execute(delete(PetOwner).where(PetOwner.pet_id == pet_id))
     db.delete(pet)
     db.commit()
+    remove_image("pets", pet_id)
+    for incident_id in incident_ids:
+        remove_image("incidents", incident_id)
 
 
 @router.post("/{pet_id}/incidents", response_model=IncidentRead, status_code=status.HTTP_201_CREATED)

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from ..auth import current_user
 from ..database import get_db
 from ..models import Incident, PetOwner, User
+from ..storage import remove_image
 
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
@@ -25,3 +26,4 @@ def delete_incident(incident_id: int, db: Session = Depends(get_db), user: User 
     incident = find_incident(db, incident_id, user.id)
     db.delete(incident)
     db.commit()
+    remove_image("incidents", incident_id)

@@ -6,7 +6,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import Base, engine
 from . import models  # noqa: F401: register tables before create_all
-from .routes import auth, incidents, pets
+from .routes import auth, images, incidents, pets
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(pets.router)
 app.include_router(incidents.router)
+app.include_router(images.router)
 
 
 @app.get("/api/health", tags=["health"])
